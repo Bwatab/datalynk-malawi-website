@@ -44,6 +44,7 @@ const socialLinks = [
 export default function Contact() {
   const [form, setForm] = useState<FormState>({ name: '', email: '', subject: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -53,10 +54,46 @@ export default function Contact() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
-    setSubmitted(true);
-    setForm({ name: '', email: '', subject: '', message: '' });
+
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !anonKey) {
+        throw new Error('Supabase configuration missing');
+      }
+
+      const apiUrl = `${supabaseUrl}/functions/v1/send-contact-email`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          subject: form.subject,
+          message: form.message,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send message');
+      }
+
+      setSubmitted(true);
+      setError(null);
+      setForm({ name: '', email: '', subject: '', message: '' });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -128,12 +165,15 @@ export default function Contact() {
                 <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-5 border border-green-500/20">
                   <Send size={24} className="text-green-400" />
                 </div>
-                <h3 className="text-white font-bold text-xl mb-3">Message Sent!</h3>
+                <h3 className="text-white font-bold text-xl mb-3">Message Sent Successfully!</h3>
                 <p className="text-slate-400 text-sm max-w-sm leading-relaxed">
-                  Thank you for reaching out. We'll get back to you shortly.
+                  Thank you for reaching out. We've received your message and will get back to you as soon as possible at {form.email}.
                 </p>
                 <button
-                  onClick={() => setSubmitted(false)}
+                  onClick={() => {
+                    setSubmitted(false);
+                    setError(null);
+                  }}
                   className="mt-6 px-6 py-2.5 rounded-xl border border-sky-500/30 text-sky-300 text-sm font-medium hover:bg-sky-500/10 transition-colors duration-200"
                 >
                   Send Another Message
@@ -146,6 +186,12 @@ export default function Contact() {
               >
                 <h3 className="text-white font-bold text-lg mb-1">Send Us a Message</h3>
                 <p className="text-slate-400 text-sm mb-4">Fill out the form and we'll respond within 24 hours.</p>
+
+                {error && (
+                  <div className="p-4 bg-red-500/15 border border-red-500/30 rounded-xl">
+                    <p className="text-red-300 text-sm">{error}</p>
+                  </div>
+                )}
 
                 <div className="grid sm:grid-cols-2 gap-5">
                   <div>
