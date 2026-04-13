@@ -24,15 +24,6 @@ async function sendEmail(data: ContactFormData): Promise<{ success: boolean; err
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const messageBody = `
-Name: ${data.name}
-Email: ${data.email}
-Subject: ${data.subject}
-
-Message:
-${data.message}
-    `.trim();
-
     const emailContent = `
 <!DOCTYPE html>
 <html>
@@ -69,6 +60,7 @@ ${data.message}
         </div>
         <div class="footer">
           <p>This message was sent from the DataLynk Malawi contact form</p>
+          <p>Reply to: ${data.email}</p>
         </div>
       </div>
     </div>
@@ -91,41 +83,50 @@ ${data.message}
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
 
-    if (resendApiKey) {
-      const emailResponse = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${resendApiKey}`,
-        },
-        body: JSON.stringify({
-          from: 'noreply@datalynkmalawi.com',
-          to: 'datalynkmalawi@proton.me',
-          replyTo: data.email,
-          subject: `New Contact: ${data.subject}`,
-          html: emailContent,
-        }),
-      });
+    let emailSent = false;
 
-      if (!emailResponse.ok) {
-        const errorData = await emailResponse.text();
-        console.error('Resend API error:', errorData);
-        throw new Error(`Email service error: ${emailResponse.status}`);
+    if (resendApiKey && resendApiKey.trim()) {
+      try {
+        const emailResponse = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${resendApiKey}`,
+          },
+          body: JSON.stringify({
+            from: 'noreply@datalynkmalawi.com',
+            to: 'datalynkmalawi@proton.me',
+            replyTo: data.email,
+            subject: `New Contact: ${data.subject}`,
+            html: emailContent,
+          }),
+        });
+
+        if (emailResponse.ok) {
+          emailSent = true;
+          await supabase
+            .from('contact_messages')
+            .update({ sent: true })
+            .eq('email', data.email)
+            .eq('subject', data.subject)
+            .eq('name', data.name);
+        } else {
+          console.warn('Resend email failed, message stored in database');
+        }
+      } catch (emailError) {
+        console.warn('Email service unavailable, message stored in database:', emailError);
       }
-
-      await supabase
-        .from('contact_messages')
-        .update({ sent: true })
-        .eq('email', data.email)
-        .eq('subject', data.subject);
     } else {
-      console.warn('RESEND_API_KEY not configured, message saved but not sent via email');
+      console.warn('RESEND_API_KEY not configured, message saved to database');
     }
 
-    return { success: true };
+    return {
+      success: true,
+      error: emailSent ? undefined : 'Message received and will be forwarded to our team',
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error sending email:', errorMessage);
+    console.error('Error processing contact form:', errorMessage);
     return { success: false, error: errorMessage };
   }
 }
