@@ -1,13 +1,6 @@
 import { useState } from 'react';
 import { Phone, Mail, Send, MessageSquare, Facebook, Instagram, Twitter } from 'lucide-react';
 
-interface FormState {
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-}
-
 const contactInfo = [
   {
     icon: Phone,
@@ -42,59 +35,7 @@ const socialLinks = [
 ];
 
 export default function Contact() {
-  const [form, setForm] = useState<FormState>({ name: '', email: '', subject: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      if (!supabaseUrl || !anonKey) {
-        throw new Error('Supabase configuration missing');
-      }
-
-      const apiUrl = `${supabaseUrl}/functions/v1/send-contact-email`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          subject: form.subject,
-          message: form.message,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send message');
-      }
-
-      setSubmitted(true);
-      setError(null);
-      setForm({ name: '', email: '', subject: '', message: '' });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <section id="contact" className="py-24 bg-[#060f1e] relative overflow-hidden">
@@ -167,13 +108,10 @@ export default function Contact() {
                 </div>
                 <h3 className="text-white font-bold text-xl mb-3">Message Sent Successfully!</h3>
                 <p className="text-slate-400 text-sm max-w-sm leading-relaxed">
-                  Thank you for reaching out. We've received your message and will get back to you as soon as possible at {form.email}.
+                  Thank you for reaching out. We've received your message and will get back to you as soon as possible.
                 </p>
                 <button
-                  onClick={() => {
-                    setSubmitted(false);
-                    setError(null);
-                  }}
+                  onClick={() => setSubmitted(false)}
                   className="mt-6 px-6 py-2.5 rounded-xl border border-sky-500/30 text-sky-300 text-sm font-medium hover:bg-sky-500/10 transition-colors duration-200"
                 >
                   Send Another Message
@@ -181,17 +119,16 @@ export default function Contact() {
               </div>
             ) : (
               <form
-                onSubmit={handleSubmit}
+                name="contact"
+                method="POST"
+                data-netlify="true"
+                onSubmit={() => setSubmitted(true)}
                 className="bg-[#0f3460]/30 border border-sky-500/10 rounded-3xl p-8 space-y-5"
               >
+                <input type="hidden" name="form-name" value="contact" />
+
                 <h3 className="text-white font-bold text-lg mb-1">Send Us a Message</h3>
                 <p className="text-slate-400 text-sm mb-4">Fill out the form and we'll respond within 24 hours.</p>
-
-                {error && (
-                  <div className="p-4 bg-red-500/15 border border-red-500/30 rounded-xl">
-                    <p className="text-red-300 text-sm">{error}</p>
-                  </div>
-                )}
 
                 <div className="grid sm:grid-cols-2 gap-5">
                   <div>
@@ -199,8 +136,6 @@ export default function Contact() {
                     <input
                       type="text"
                       name="name"
-                      value={form.name}
-                      onChange={handleChange}
                       required
                       placeholder="John Banda"
                       className="contact-input w-full px-4 py-3 rounded-xl text-sm"
@@ -211,8 +146,6 @@ export default function Contact() {
                     <input
                       type="email"
                       name="email"
-                      value={form.email}
-                      onChange={handleChange}
                       required
                       placeholder="john@company.com"
                       className="contact-input w-full px-4 py-3 rounded-xl text-sm"
@@ -225,8 +158,6 @@ export default function Contact() {
                   <input
                     type="text"
                     name="subject"
-                    value={form.subject}
-                    onChange={handleChange}
                     required
                     placeholder="How can we help you?"
                     className="contact-input w-full px-4 py-3 rounded-xl text-sm"
@@ -237,8 +168,6 @@ export default function Contact() {
                   <label className="block text-slate-400 text-xs font-medium mb-2 uppercase tracking-wider">Message</label>
                   <textarea
                     name="message"
-                    value={form.message}
-                    onChange={handleChange}
                     required
                     rows={5}
                     placeholder="Tell us about your data needs..."
@@ -248,20 +177,10 @@ export default function Contact() {
 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-sky-500 to-teal-500 text-white font-semibold text-sm hover:shadow-xl hover:shadow-sky-500/25 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-sky-500 to-teal-500 text-white font-semibold text-sm hover:shadow-xl hover:shadow-sky-500/25 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200"
                 >
-                  {loading ? (
-                    <>
-                      <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={16} />
-                      Send Message
-                    </>
-                  )}
+                  <Send size={16} />
+                  Send Message
                 </button>
               </form>
             )}
